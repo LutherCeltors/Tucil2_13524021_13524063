@@ -2,12 +2,10 @@ package main
 
 import "math"
 
-// AABB is an axis-aligned bounding box.
 type AABB struct {
 	Min, Max Vec3
 }
 
-// Center returns the centroid of the box.
 func (a AABB) Center() Vec3 {
 	return Vec3{
 		(a.Min.X + a.Max.X) * 0.5,
@@ -16,7 +14,6 @@ func (a AABB) Center() Vec3 {
 	}
 }
 
-// Size returns the half-extents along each axis.
 func (a AABB) HalfSize() Vec3 {
 	return Vec3{
 		(a.Max.X - a.Min.X) * 0.5,
@@ -25,15 +22,12 @@ func (a AABB) HalfSize() Vec3 {
 	}
 }
 
-// ContainsPoint returns true when p is strictly inside or on the boundary.
 func (a AABB) ContainsPoint(p Vec3) bool {
 	return p.X >= a.Min.X && p.X <= a.Max.X &&
 		p.Y >= a.Min.Y && p.Y <= a.Max.Y &&
 		p.Z >= a.Min.Z && p.Z <= a.Max.Z
 }
 
-// ComputeBounds computes the tight AABB of a set of vertices and adds a small
-// epsilon so all surface triangles are strictly inside the root box.
 func ComputeBounds(verts []Vec3) AABB {
 	const eps = 1e-6
 	b := AABB{
@@ -48,7 +42,6 @@ func ComputeBounds(verts []Vec3) AABB {
 		if v.Y > b.Max.Y { b.Max.Y = v.Y }
 		if v.Z > b.Max.Z { b.Max.Z = v.Z }
 	}
-	// Expand to a cube (equal side lengths) so voxels are uniform cubes.
 	dx := b.Max.X - b.Min.X
 	dy := b.Max.Y - b.Min.Y
 	dz := b.Max.Z - b.Min.Z
@@ -63,12 +56,7 @@ func ComputeBounds(verts []Vec3) AABB {
 	}
 }
 
-// TriangleIntersectsAABB uses the Separating Axis Theorem (SAT) to test
-// whether a triangle intersects an axis-aligned bounding box.
-//
-// Reference: Akenine-Möller, "Fast 3D Triangle-Box Overlap Testing" (2001).
 func TriangleIntersectsAABB(v0, v1, v2 Vec3, box AABB) bool {
-	// Translate triangle and box so box is centred at the origin.
 	c := box.Center()
 	h := box.HalfSize()
 
@@ -76,29 +64,23 @@ func TriangleIntersectsAABB(v0, v1, v2 Vec3, box AABB) bool {
 	a1 := Vec3{v1.X - c.X, v1.Y - c.Y, v1.Z - c.Z}
 	a2 := Vec3{v2.X - c.X, v2.Y - c.Y, v2.Z - c.Z}
 
-	// ---- 1. AABB face normals (trivial reject / accept) -------------------
-	// X-axis
 	minX := math.Min(a0.X, math.Min(a1.X, a2.X))
 	maxX := math.Max(a0.X, math.Max(a1.X, a2.X))
 	if minX > h.X || maxX < -h.X { return false }
 
-	// Y-axis
 	minY := math.Min(a0.Y, math.Min(a1.Y, a2.Y))
 	maxY := math.Max(a0.Y, math.Max(a1.Y, a2.Y))
 	if minY > h.Y || maxY < -h.Y { return false }
 
-	// Z-axis
 	minZ := math.Min(a0.Z, math.Min(a1.Z, a2.Z))
 	maxZ := math.Max(a0.Z, math.Max(a1.Z, a2.Z))
 	if minZ > h.Z || maxZ < -h.Z { return false }
 
-	// ---- 2. Triangle's face normal ----------------------------------------
 	e0 := Vec3{a1.X - a0.X, a1.Y - a0.Y, a1.Z - a0.Z}
 	e1 := Vec3{a2.X - a1.X, a2.Y - a1.Y, a2.Z - a1.Z}
 	normal := cross(e0, e1)
 	if !planeAABBOverlap(normal, a0, h) { return false }
 
-	// ---- 3. Cross products of triangle edges × AABB axes (9 axes) ---------
 	edges := [3]Vec3{
 		e0,
 		e1,
@@ -110,13 +92,11 @@ func TriangleIntersectsAABB(v0, v1, v2 Vec3, box AABB) bool {
 	for _, e := range edges {
 		for _, ax := range axes {
 			sep := cross(e, ax)
-			// Project all three triangle vertices
 			p0 := dot(sep, verts[0])
 			p1 := dot(sep, verts[1])
 			p2 := dot(sep, verts[2])
 			pMin := math.Min(p0, math.Min(p1, p2))
 			pMax := math.Max(p0, math.Max(p1, p2))
-			// Radius of box projected onto this axis
 			r := h.X*math.Abs(sep.X) + h.Y*math.Abs(sep.Y) + h.Z*math.Abs(sep.Z)
 			if pMin > r || pMax < -r {
 				return false
@@ -138,8 +118,6 @@ func dot(a, b Vec3) float64 {
 	return a.X*b.X + a.Y*b.Y + a.Z*b.Z
 }
 
-// planeAABBOverlap checks whether the plane defined by (normal, point) overlaps the
-// box centred at the origin with half-extents h.
 func planeAABBOverlap(normal, point Vec3, h Vec3) bool {
 	r := h.X*math.Abs(normal.X) + h.Y*math.Abs(normal.Y) + h.Z*math.Abs(normal.Z)
 	s := dot(normal, point)

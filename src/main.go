@@ -24,7 +24,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Parse the input .obj file
 	fmt.Printf("Loading model: %s\n", inputPath)
 	model, err := ParseOBJ(inputPath)
 	if err != nil {
@@ -33,7 +32,6 @@ func main() {
 	}
 	fmt.Printf("Loaded %d vertices and %d faces.\n", len(model.Vertices), len(model.Faces))
 
-	// Run voxelization
 	fmt.Printf("Voxelizing with max depth %d...\n", maxDepth)
 	startTime := time.Now()
 
@@ -41,17 +39,14 @@ func main() {
 
 	elapsed := time.Since(startTime)
 
-	// Determine output path
 	outputPath := DeriveOutputPath(inputPath)
 
-	// Write output .obj
 	err = WriteOBJ(outputPath, result.Vertices, result.Faces)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error writing output OBJ: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Print statistics
 	fmt.Println()
 	fmt.Println("=== Voxelization Report ===")
 	fmt.Printf("Voxel count        : %d\n", result.VoxelCount)

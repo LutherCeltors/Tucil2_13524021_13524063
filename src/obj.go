@@ -9,24 +9,19 @@ import (
 	"strings"
 )
 
-// Vec3 is a 3D point/vector.
 type Vec3 struct {
 	X, Y, Z float64
 }
 
-// Triangle holds indices into the vertex slice (0-based).
 type Triangle struct {
 	A, B, C int
 }
 
-// Model is the parsed representation of an OBJ file.
 type Model struct {
 	Vertices []Vec3
 	Faces    []Triangle
 }
 
-// ParseOBJ reads a .obj file and returns a Model.
-// Only lines starting with "v " or "f " are processed.
 func ParseOBJ(path string) (*Model, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -63,30 +58,25 @@ func ParseOBJ(path string) (*Model, error) {
 			if len(fields) < 4 {
 				return nil, fmt.Errorf("line %d: face must have at least 3 indices", lineNum)
 			}
-			// Parse face indices (may be "v", "v/vt", "v/vt/vn", "v//vn")
 			indices := make([]int, 0, len(fields)-1)
 			for _, tok := range fields[1:] {
-				// Take only the vertex index part before any slash
 				parts := strings.SplitN(tok, "/", 2)
 				idx, err := strconv.Atoi(parts[0])
 				if err != nil {
 					return nil, fmt.Errorf("line %d: invalid face index '%s'", lineNum, tok)
 				}
 				if idx < 0 {
-					// Negative index: relative
 					idx = len(model.Vertices) + idx + 1
 				}
 				if idx <= 0 || idx > len(model.Vertices) {
 					return nil, fmt.Errorf("line %d: face index %d out of range", lineNum, idx)
 				}
-				indices = append(indices, idx-1) // convert to 0-based
+				indices = append(indices, idx-1)
 			}
-			// Fan-triangulate polygon faces
 			for i := 1; i < len(indices)-1; i++ {
 				model.Faces = append(model.Faces, Triangle{indices[0], indices[i], indices[i+1]})
 			}
 		default:
-			// Ignore all other line types (vn, vt, s, g, usemtl, mtllib, o, ...)
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -101,7 +91,6 @@ func ParseOBJ(path string) (*Model, error) {
 	return model, nil
 }
 
-// WriteOBJ writes vertices and faces (as quads per voxel face) to a .obj file.
 func WriteOBJ(path string, vertices []Vec3, faces [][4]int) error {
 	f, err := os.Create(path)
 	if err != nil {
@@ -115,13 +104,11 @@ func WriteOBJ(path string, vertices []Vec3, faces [][4]int) error {
 		fmt.Fprintf(w, "v %f %f %f\n", v.X, v.Y, v.Z)
 	}
 	for _, face := range faces {
-		// 1-based OBJ indices
 		fmt.Fprintf(w, "f %d %d %d %d\n", face[0]+1, face[1]+1, face[2]+1, face[3]+1)
 	}
 	return w.Flush()
 }
 
-// DeriveOutputPath creates an output filename from the input path.
 func DeriveOutputPath(inputPath string) string {
 	dir := filepath.Dir(inputPath)
 	base := filepath.Base(inputPath)
