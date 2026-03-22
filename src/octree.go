@@ -1,26 +1,52 @@
 package main
 
+import ("sync")
+
 type VoxelResult struct {
 	Vertices          []Vec3
-	Faces             [][4]int
+	Faces             [][4]int 
 	VoxelCount        int
-	NodeCountPerDepth []int
-	PrunedPerDepth    []int
+	NodeCountPerDepth []int 
+	PrunedPerDepth    []int 
+}
+type rawTriangle struct {
+	V0, V1, V2 Vec3
+}
+// Buat ngitung statsny
+type concurrentCollector struct {
+	mu     sync.Mutex
+	leaves []AABB
+	nodes  []int
+	pruned []int 
 }
 
-type OctreeNode struct {
-	Box      AABB
-	Children [8]*OctreeNode
-	IsLeaf   bool
-	HasVoxel bool
-}
-
-func Voxelize(model *Model, maxDepth int) *VoxelResult {
-	res := &VoxelResult{
-		NodeCountPerDepth: make([]int, maxDepth+1),
-		PrunedPerDepth:    make([]int, maxDepth+1),
+func newCollector(maxDepth int) *concurrentCollector {
+	return &concurrentCollector{
+		nodes:  make([]int, maxDepth+1),
+		pruned: make([]int, maxDepth+1),
 	}
+}
+func (c *concurrentCollector) addLeaf(box AABB) {
+	c.mu.Lock()
+	c.leaves = append(c.leaves, box)
+	c.mu.Unlock()
+}
+func (c *concurrentCollector) addNode(depth int) {
+	c.mu.Lock()
+	c.nodes[depth]++
+	c.mu.Unlock()
+}
+func (c *concurrentCollector) addPruned(depth int) {
+	c.mu.Lock()
+	c.pruned[depth]++
+	c.mu.Unlock()
+}
 
+// Dibawah ini masih pake rekursi normal, minimalisir overhead
+const LimitDepth = 4
+
+// Main
+func Voxelize(model *Model, maxDepth int) *VoxelResult {
 	rootBox := ComputeBounds(model.Vertices)
 	tris := make([]rawTriangle, len(model.Faces))
 	for i, f := range model.Faces {
@@ -30,44 +56,63 @@ func Voxelize(model *Model, maxDepth int) *VoxelResult {
 			V2: model.Vertices[f.C],
 		}
 	}
-	var activeLeaves []AABB
-	buildOctree(rootBox, tris, 1, maxDepth, res, &activeLeaves)
-
-	res.VoxelCount = len(activeLeaves)
-	for _, box := range activeLeaves {
+	collector := newCollector(maxDepth)
+	// Cap semaphore goroutine (Buat ngontrol Thrashing)
+	sem := make(chan struct{}, 512)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go buildOctreeConcurrent(rootBox, tris, 1, maxDepth, collector, sem, &wg)
+	wg.Wait()
+	res := &VoxelResult{
+		NodeCountPerDepth: collector.nodes,
+		PrunedPerDepth:    collector.pruned,
+	}
+	res.VoxelCount = len(collector.leaves)
+	for _, box := range collector.leaves {
 		appendVoxelGeometry(box, res)
 	}
-
 	return res
 }
 
-type rawTriangle struct {
-	V0, V1, V2 Vec3
-}
-
-func buildOctree(
+func buildOctreeConcurrent(
 	box AABB,
 	tris []rawTriangle,
 	depth, maxDepth int,
-	res *VoxelResult,
-	leaves *[]AABB,
+	col *concurrentCollector,
+	sem chan struct{},
+	wg *sync.WaitGroup,
 ) {
-	res.NodeCountPerDepth[depth]++
+	defer wg.Done()
+	col.addNode(depth)
 	overlapping := filterTriangles(tris, box)
-
 	if len(overlapping) == 0 {
-		res.PrunedPerDepth[depth]++
+		col.addPruned(depth)
 		return
 	}
-
 	if depth == maxDepth {
-		*leaves = append(*leaves, box)
+		col.addLeaf(box)
 		return
 	}
-
 	octants := subdivide(box)
-	for _, child := range octants {
-		buildOctree(child, overlapping, depth+1, maxDepth, res, leaves)
+	if depth <= LimitDepth {
+		var childWg sync.WaitGroup
+		for _, child := range octants {
+			child := child          // capture
+			sem <- struct{}{}       // ambil semaphore slot
+			childWg.Add(1)
+			wg.Add(1)
+			go func() {
+				defer func() { <-sem }() // lepas slot
+				buildOctreeConcurrent(child, overlapping, depth+1, maxDepth, col, sem, wg)
+				childWg.Done()
+			}()
+		}
+		childWg.Wait()
+	} else {
+		for _, child := range octants {
+			wg.Add(1)
+			buildOctreeConcurrent(child, overlapping, depth+1, maxDepth, col, sem, wg)
+		}
 	}
 }
 
@@ -84,14 +129,14 @@ func filterTriangles(tris []rawTriangle, box AABB) []rawTriangle {
 func subdivide(box AABB) [8]AABB {
 	c := box.Center()
 	return [8]AABB{
-		{Min: Vec3{box.Min.X, box.Min.Y, box.Min.Z}, Max: Vec3{c.X, c.Y, c.Z}},
-		{Min: Vec3{c.X, box.Min.Y, box.Min.Z}, Max: Vec3{box.Max.X, c.Y, c.Z}},
-		{Min: Vec3{box.Min.X, box.Min.Y, c.Z}, Max: Vec3{c.X, c.Y, box.Max.Z}},
-		{Min: Vec3{c.X, box.Min.Y, c.Z}, Max: Vec3{box.Max.X, c.Y, box.Max.Z}},
-		{Min: Vec3{box.Min.X, c.Y, box.Min.Z}, Max: Vec3{c.X, box.Max.Y, c.Z}},
-		{Min: Vec3{c.X, c.Y, box.Min.Z}, Max: Vec3{box.Max.X, box.Max.Y, c.Z}},
-		{Min: Vec3{box.Min.X, c.Y, c.Z}, Max: Vec3{c.X, box.Max.Y, box.Max.Z}},
-		{Min: Vec3{c.X, c.Y, c.Z}, Max: Vec3{box.Max.X, box.Max.Y, box.Max.Z}},
+		{Min: Vec3{box.Min.X, box.Min.Y, box.Min.Z}, Max: Vec3{c.X, c.Y, c.Z}},         
+		{Min: Vec3{c.X, box.Min.Y, box.Min.Z}, Max: Vec3{box.Max.X, c.Y, c.Z}},        
+		{Min: Vec3{box.Min.X, box.Min.Y, c.Z}, Max: Vec3{c.X, c.Y, box.Max.Z}},         
+		{Min: Vec3{c.X, box.Min.Y, c.Z}, Max: Vec3{box.Max.X, c.Y, box.Max.Z}},         
+		{Min: Vec3{box.Min.X, c.Y, box.Min.Z}, Max: Vec3{c.X, box.Max.Y, c.Z}},         
+		{Min: Vec3{c.X, c.Y, box.Min.Z}, Max: Vec3{box.Max.X, box.Max.Y, c.Z}},          
+		{Min: Vec3{box.Min.X, c.Y, c.Z}, Max: Vec3{c.X, box.Max.Y, box.Max.Z}},         
+		{Min: Vec3{c.X, c.Y, c.Z}, Max: Vec3{box.Max.X, box.Max.Y, box.Max.Z}},         
 	}
 }
 
@@ -99,25 +144,23 @@ func appendVoxelGeometry(box AABB, res *VoxelResult) {
 	base := len(res.Vertices)
 	mn := box.Min
 	mx := box.Max
-
 	res.Vertices = append(res.Vertices,
-		Vec3{mn.X, mn.Y, mn.Z},
-		Vec3{mx.X, mn.Y, mn.Z},
-		Vec3{mx.X, mn.Y, mx.Z},
-		Vec3{mn.X, mn.Y, mx.Z},
-		Vec3{mn.X, mx.Y, mn.Z},
-		Vec3{mx.X, mx.Y, mn.Z},
-		Vec3{mx.X, mx.Y, mx.Z},
-		Vec3{mn.X, mx.Y, mx.Z},
+		Vec3{mn.X, mn.Y, mn.Z}, 
+		Vec3{mx.X, mn.Y, mn.Z}, 
+		Vec3{mx.X, mn.Y, mx.Z}, 
+		Vec3{mn.X, mn.Y, mx.Z}, 
+		Vec3{mn.X, mx.Y, mn.Z}, 
+		Vec3{mx.X, mx.Y, mn.Z}, 
+		Vec3{mx.X, mx.Y, mx.Z}, 
+		Vec3{mn.X, mx.Y, mx.Z}, 
 	)
-
 	b := base
 	res.Faces = append(res.Faces,
-		[4]int{b + 0, b + 1, b + 2, b + 3},
+		[4]int{b + 0, b + 1, b + 2, b + 3}, 
 		[4]int{b + 7, b + 6, b + 5, b + 4},
 		[4]int{b + 0, b + 4, b + 5, b + 1},
-		[4]int{b + 2, b + 6, b + 7, b + 3},
-		[4]int{b + 0, b + 3, b + 7, b + 4},
-		[4]int{b + 1, b + 5, b + 6, b + 2},
+		[4]int{b + 2, b + 6, b + 7, b + 3}, 
+		[4]int{b + 0, b + 3, b + 7, b + 4}, 
+		[4]int{b + 1, b + 5, b + 6, b + 2}, 
 	)
 }
