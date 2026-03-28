@@ -123,3 +123,41 @@ func planeAABBOverlap(normal, point Vec3, h Vec3) bool {
 	s := dot(normal, point)
 	return math.Abs(s) <= r
 }
+
+// Geometri untuk viewer
+// Vec2, Vec3, Vec4, serta operasi matriks 4x4
+
+type Mat4 [4][4] float64;
+
+type Vec4 struct {
+	W, X, Y, Z float64;
+}
+
+func Add3(v1, v2 Vec3) Vec3 {
+	return Vec3{v1.X + v2.X, v1.Y + v2.Y, v1.Z + v2.Z};
+}
+
+func Sub3(v1, v2 Vec3) Vec3 {
+	return Vec3{v1.X - v2.X, v1.Y - v2.Y, v1.Z - v2.Z};
+}
+
+func MulN(v1 Vec3, s float64) Vec3 {
+	return Vec3{v1.X * s , v1.Y * s, v1.Z * s};
+}
+
+func Norm(v1 Vec3) float64 {
+	return math.Sqrt(math.Pow(v1.X, 2) + math.Pow(v1.Y, 2) + math.Pow(v1.Z, 2));
+}
+
+func Normalized(v Vec3) Vec3 {
+	return Vec3{v.X / Norm(v), v.Y / Norm(v), v.Z / Norm(v)};
+}
+
+func Mat4Identity() Mat4 {
+	return Mat4 {
+		{1, 0 , 0, 0},
+		{0, 1 , 0, 0},
+		{0, 0 , 1, 0},
+		{0, 0 , 0, 1},
+	}
+}
