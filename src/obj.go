@@ -116,3 +116,33 @@ func DeriveOutputPath(inputPath string) string {
 	name := strings.TrimSuffix(base, ext)
 	return filepath.Join(dir, name+"-voxelized.obj")
 }
+
+func NormalizeModel(model *Model) {
+	if model == nil || len(model.Vertices) == 0 {
+		return
+	}
+
+	AABB := ComputeBounds(model.Vertices)
+	
+	sizeX := AABB.Max.X - AABB.Min.X
+	sizeY := AABB.Max.Y - AABB.Min.Y
+	sizeZ := AABB.Max.Z - AABB.Min.Z
+
+	maxSize := sizeX
+	if sizeY > maxSize { maxSize = sizeY }
+	if sizeZ > maxSize { maxSize = sizeZ }
+
+	if maxSize == 0 {
+		maxSize = 1
+	}
+
+	scale := 1.6 / maxSize
+
+	for i, v := range model.Vertices {
+		model.Vertices[i] = Vec3{
+			X: (v.X - AABB.Center().X) * scale,
+			Y: (v.Y - AABB.Center().Y) * scale,
+			Z: (v.Z - AABB.Center().Z) * scale,
+		}
+	}
+}
