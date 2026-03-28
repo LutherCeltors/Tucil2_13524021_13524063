@@ -36,11 +36,11 @@ Program ini mengkonversi sebuah model 3D dalam format `.obj` menjadi representas
 
 | Fitur | Keterangan |
 |-------|-----------|
-| ✅ Voxelization | Konversi `.obj` → voxel seragam berbasis Octree D&C |
-| ✅ Validasi input | Deteksi format `.obj` tidak valid, indeks out-of-range, dll |
-| ✅ CLI Report | Statistik lengkap: jumlah voxel, node octree, pruning, waktu |
-| ✅ Concurrency | Goroutine paralel pada depth ≤ 4, semaphore cap 512 goroutine |
-| ✅ Cross-platform | Windows, Linux, macOS |
+| Voxelization | Konversi `.obj` → voxel seragam berbasis Octree D&C |
+| Validasi input | Deteksi format `.obj` tidak valid, indeks out-of-range, dll |
+| CLI Report | Statistik lengkap: jumlah voxel, node octree, pruning, waktu |
+| Concurrency | Goroutine paralel pada depth ≤ 4, semaphore cap 512 goroutine |
+| Object Viewer | Visualisasi file '.obj'|
 
 ---
 
@@ -88,11 +88,10 @@ Executable akan tersimpan di folder `bin/`.
 
 ### Parameter
 
-| Parameter | Wajib | Keterangan |
-|-----------|-------|-----------|
-| `input.obj` | ✅ | Path ke file `.obj` yang ingin dikonversi |
-| `max_depth` | ✅ | Kedalaman maksimum octree (integer positif, misal: `5`) |
-| `--view` | ❌ | Buka viewer 3D di browser secara otomatis setelah konversi |
+| Parameter | Keterangan |
+|-----------|----------|
+| `input.obj` | Path ke file `.obj` yang ingin dikonversi |
+| `max_depth` | Kedalaman maksimum octree (integer positif, misal: `5`) |
 
 ### Contoh Penggunaan
 
@@ -192,6 +191,7 @@ Tucil2_NIM1_NIM2/
 │   ├── obj.go        # Parser & writer file .obj
 │   ├── geometry.go   # Vec3, AABB, SAT triangle-box intersection
 │   ├── octree.go     # Octree, algoritma D&C, concurrency
+│   └── go.mod        # Go module definition
 │   └── go.mod        # Go module definition
 ├── bin/              # Executable hasil kompilasi
 ├── test/             # File .obj untuk pengujian & hasil konversi
