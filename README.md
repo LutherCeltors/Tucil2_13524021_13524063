@@ -187,15 +187,19 @@ Untuk input `path/ke/model.obj`, program menghasilkan:
 ```
 Tucil2_NIM1_NIM2/
 ├── src/
-│   ├── main.go       # Entry point, CLI, argument parsing
-│   ├── obj.go        # Parser & writer file .obj
-│   ├── geometry.go   # Vec3, AABB, SAT triangle-box intersection
-│   ├── octree.go     # Octree, algoritma D&C, concurrency
-│   └── go.mod        # Go module definition
-│   └── go.mod        # Go module definition
-├── bin/              # Executable hasil kompilasi
-├── test/             # File .obj untuk pengujian & hasil konversi
-├── doc/              # Laporan tugas dalam format PDF
+│   ├── main.go         # Entry point, CLI, argument parsing
+│   ├── obj.go          # Parser & writer file .obj
+│   ├── geometry.go     # Vec3, AABB, SAT triangle-box intersection
+│   ├── octree.go       # Octree, algoritma D&C, concurrency
+│   └── go.mod          # Go module definition
+│   └── viewer.go       # Go module definition
+│   ├── camera.go       # Camera interactive features
+│   ├── framebuffer.go  # Framebuffer for viewer
+│   ├── go.sum          # Go module configuration
+│   ├── raster.go       # Rasterization
+├── bin/                # Executable hasil kompilasi
+├── test/               # File .obj untuk pengujian & hasil konversi
+├── doc/                # Laporan tugas dalam format PDF
 └── README.md
 ```
 
@@ -206,4 +210,4 @@ Tucil2_NIM1_NIM2/
 | Nama | NIM |
 |------|-----|
 | Natanael I. Manurung | 13524021 | 
-| Marcel L. Sitorus | 13524 | 
+| Marcel L. Sitorus | 13524063 | 
