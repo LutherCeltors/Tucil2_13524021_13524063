@@ -248,7 +248,6 @@ func RotationXYZ4(rX, rY, rZ float64) Mat4 {
 	mX := RotationX4(rX);
 	mY := RotationY4(rY);
 	mZ := RotationZ4(rZ);
-
 	return MulMat4Mat4(mZ, MulMat4Mat4(mY, mX))
 }
 
@@ -286,25 +285,14 @@ func ProjectVertex(v Vec3, mvp Mat4, width, height int) (ScreenVertex, bool) {
 
 	clip := MulMat4Vec4(mvp, v4)
 
-	// Hindari pembagian dengan nol
-	if clip.W == 0 {
+	if clip.W <= 0.00001 {
 		return ScreenVertex{}, false
 	}
 
-	// Perspective divide
 	ndcX := clip.X / clip.W
 	ndcY := clip.Y / clip.W
 	ndcZ := clip.Z / clip.W
-
-	// Optional reject sederhana:
-	// kalau di luar NDC, anggap tidak terlihat
-	if ndcX < -1 || ndcX > 1 ||
-		ndcY < -1 || ndcY > 1 ||
-		ndcZ < -1 || ndcZ > 1 {
-		return ScreenVertex{}, false
-	}
-
-	// Konversi NDC -> koordinat layar
+	
 	screenX := (ndcX + 1.0) * 0.5 * float64(width)
 	screenY := (1.0 - (ndcY+1.0)*0.5) * float64(height)
 
