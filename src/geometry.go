@@ -133,6 +133,10 @@ type Vec4 struct {
 	W, X, Y, Z float64;
 }
 
+type ScreenVertex struct {
+	X, Y, Z float64
+}
+
 func Add3(v1, v2 Vec3) Vec3 {
 	return Vec3{v1.X + v2.X, v1.Y + v2.Y, v1.Z + v2.Z};
 }
@@ -141,16 +145,19 @@ func Sub3(v1, v2 Vec3) Vec3 {
 	return Vec3{v1.X - v2.X, v1.Y - v2.Y, v1.Z - v2.Z};
 }
 
-func MulN(v1 Vec3, s float64) Vec3 {
+func MulN3(v1 Vec3, s float64) Vec3 {
 	return Vec3{v1.X * s , v1.Y * s, v1.Z * s};
 }
 
-func Norm(v1 Vec3) float64 {
+func Norm3(v1 Vec3) float64 {
 	return math.Sqrt(math.Pow(v1.X, 2) + math.Pow(v1.Y, 2) + math.Pow(v1.Z, 2));
 }
 
-func Normalized(v Vec3) Vec3 {
-	return Vec3{v.X / Norm(v), v.Y / Norm(v), v.Z / Norm(v)};
+func Normalized3(v Vec3) Vec3 {
+	if (Norm3(v) == 0) {
+		return v
+	}
+	return Vec3{v.X / Norm3(v), v.Y / Norm3(v), v.Z / Norm3(v)};
 }
 
 func Mat4Identity() Mat4 {
@@ -160,4 +167,150 @@ func Mat4Identity() Mat4 {
 		{0, 0 , 1, 0},
 		{0, 0 , 0, 1},
 	}
+}
+
+func MulMat4Vec4 (m4 Mat4, v4 Vec4) Vec4 {
+	var vRes Vec4
+	var tempRes float64
+
+	for i := range m4 {
+		tempRes = 0.0
+		tempRes += m4[i][0] * v4.X
+		tempRes += m4[i][1] * v4.Y
+		tempRes += m4[i][2] * v4.Z
+		tempRes += m4[i][3] * v4.W
+		
+		switch i {
+		case 0 : vRes.X = tempRes
+		case 1 : vRes.Y = tempRes
+		case 2 : vRes.Z = tempRes
+		case 3 : vRes.W = tempRes
+		}
+	}
+
+	return vRes
+}
+
+func MulMat4Mat4 (m0, m1 Mat4) Mat4 {
+	var mRes Mat4
+	var tempRes float64
+
+	for r0 := 0; r0 < 4; r0++ {
+		for c1 := 0; c1 < 4; c1++ {
+			tempRes = 0.0
+			for i := 0; i < 4; i++ {
+				tempRes += m0[r0][i] * m1[i][c1]
+			}
+			mRes[r0][c1] = tempRes
+		}
+	}
+
+	return mRes
+}
+
+func RotationX4 (rad float64) Mat4 {
+	c := math.Cos(rad)
+	s := math.Sin(rad)
+
+	return Mat4 {
+		{1, 0, 0, 0}, 
+		{0, c, -s, 0},
+		{0, s, c, 0},
+		{0 ,0 ,0 ,1},
+	}
+}
+
+func RotationY4(rad float64) Mat4 {
+	c := math.Cos(rad)
+	s := math.Sin(rad)
+
+	return Mat4{
+		{c, 0, s, 0},
+		{0, 1, 0, 0},
+		{-s, 0, c, 0},
+		{0, 0, 0, 1},
+	}
+}
+
+func RotationZ4(rad float64) Mat4 {
+	c := math.Cos(rad)
+	s := math.Sin(rad)
+
+	return Mat4{
+		{c, -s, 0, 0},
+		{s, c, 0, 0},
+		{0, 0, 1, 0},
+		{0, 0, 0, 1},
+	}
+}
+
+func RotationXYZ4(rX, rY, rZ float64) Mat4 {
+	mX := RotationX4(rX);
+	mY := RotationY4(rY);
+	mZ := RotationZ4(rZ);
+
+	return MulMat4Mat4(mZ, MulMat4Mat4(mY, mX))
+}
+
+func Perspective(opPresVAngle, windowRatio, near, far float64) Mat4 {
+	f := 1.0 / math.Tan(opPresVAngle/2.0)
+
+	return Mat4{
+		{f / windowRatio, 0, 0, 0},
+		{0, f, 0, 0},
+		{0, 0, (far + near) / (near - far), (2 * far * near) / (near - far)},
+		{0, 0, -1, 0},
+	}
+}
+
+func LookAt(cam, target, up Vec3) Mat4 {
+	forward := Normalized3(Sub3(target, cam))
+	right := Normalized3(cross(forward, up))
+	trueUp := cross(right, forward)
+
+	return Mat4{
+		{right.X, right.Y, right.Z, -dot(right, cam)},
+		{trueUp.X, trueUp.Y, trueUp.Z, -dot(trueUp, cam)},
+		{-forward.X, -forward.Y, -forward.Z, dot(forward, cam)},
+		{0, 0, 0, 1},
+	}
+}
+
+func ProjectVertex(v Vec3, mvp Mat4, width, height int) (ScreenVertex, bool) {
+	v4 := Vec4{
+		X: v.X,
+		Y: v.Y,
+		Z: v.Z,
+		W: 1.0,
+	}
+
+	clip := MulMat4Vec4(mvp, v4)
+
+	// Hindari pembagian dengan nol
+	if clip.W == 0 {
+		return ScreenVertex{}, false
+	}
+
+	// Perspective divide
+	ndcX := clip.X / clip.W
+	ndcY := clip.Y / clip.W
+	ndcZ := clip.Z / clip.W
+
+	// Optional reject sederhana:
+	// kalau di luar NDC, anggap tidak terlihat
+	if ndcX < -1 || ndcX > 1 ||
+		ndcY < -1 || ndcY > 1 ||
+		ndcZ < -1 || ndcZ > 1 {
+		return ScreenVertex{}, false
+	}
+
+	// Konversi NDC -> koordinat layar
+	screenX := (ndcX + 1.0) * 0.5 * float64(width)
+	screenY := (1.0 - (ndcY+1.0)*0.5) * float64(height)
+
+	return ScreenVertex{
+		X: screenX,
+		Y: screenY,
+		Z: ndcZ,
+	}, true
 }

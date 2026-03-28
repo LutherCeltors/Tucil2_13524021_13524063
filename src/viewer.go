@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"unsafe"
 
@@ -83,22 +84,39 @@ func (v *Viewer3D) close() {
 
 func (v *Viewer3D) run() error {
 	var err error
-
-	v.renderer.Clear()
+	rotatAngle := 0.0 
+	opPresVAngle := 60 * math.Pi/180
+	cam := 	Vec3{0,0,5}
 	
 	frame := NewFramebuff(WINDOW_WIDTH, WINDOW_HEIGHT)
-	DrawLine(0,0, 700, 500, 255, 20, 20, 255, frame)
-	DrawLine(600,100, 100, 500, 255, 255, 20, 255, frame)
+	
+	//Vektor segitiga 3D
+	// v0 := Vec3{X: -1, Y: -1, Z: 0}
+	// v1 := Vec3{X: 1, Y: -1, Z: 0}
+	// v2 := Vec3{X: 0, Y: 1, Z: 0}
 
-	err = v.texture.Update(nil, unsafe.Pointer(&frame.colors[0]), frame.nByteInRow)
-	if err != nil {
-		return fmt.Errorf("Gagal melakukan randerisasi: %v\n", err)		
+	//Mesh model kubus
+	cube := Model {
+		Vertices : []Vec3{
+			{-1.0,-1.0,-1.0}, 
+			{ 1.0,-1.0,-1.0}, 
+			{ 1.0, 1.0,-1.0},
+			{-1.0, 1.0, -1.0},
+			{-1.0, -1.0, 1.0},
+			{ 1.0, -1.0, 1.0},
+			{ 1.0, 1.0, 1.0},
+			{-1.0, 1.0, 1.0},
+		},
+		Faces: []Triangle{
+			{0, 1, 2}, {0, 2, 3}, 
+			{4, 5, 6}, {4, 6, 7},
+			{0, 1, 5}, {0, 5, 4}, 
+			{2, 3, 7}, {2, 7, 6},
+			{1, 2, 6}, {1, 6, 5},
+			{0, 3, 7}, {0, 7, 4},
+		},
 	}
-
-	v.renderer.Clear()
-	v.renderer.Copy(v.texture, nil, nil)
-	v.renderer.Present()
-
+	
 	for true {
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 			switch event.(type) {
@@ -106,6 +124,30 @@ func (v *Viewer3D) run() error {
 				return err
 			}
 		} 
+
+		v.renderer.Clear()
+		frame.ClearFrameBuff(0, 0, 0, 255)
+		frame.ClearDepth(math.Inf(1))
+
+
+		model := RotationXYZ4(rotatAngle, 0, rotatAngle)
+		view := LookAt(cam, Vec3{0,0,0}, Vec3{0,1,0})
+		projection := Perspective(opPresVAngle, float64(frame.width)/float64(frame.height), 0.1, 100.1)		
+
+		mvp := MulMat4Mat4(projection, MulMat4Mat4(view, model))
+
+		// DrawTriangle3D(v0, v1, v2, mvp, 255, 128, 128, 255, frame)
+		DrawMeshWireframe(cube, mvp, 255, 128, 128, 255, frame)
+
+		if err = v.texture.Update(nil, unsafe.Pointer(&frame.colors[0]), frame.nByteInRow); err != nil {
+			return fmt.Errorf("Gagal melakukan randerisasi: %v\n", err)		
+		}
+		
+		v.renderer.Copy(v.texture, nil, nil)
+		v.renderer.Present()
+
+		rotatAngle += 0.1
+		sdl.Delay(20)
 	}
 
 	return err

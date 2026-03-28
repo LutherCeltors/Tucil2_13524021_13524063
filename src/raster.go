@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"math"
-	"os"
 )
 
 func absVal(x int) int {
@@ -28,26 +27,23 @@ func DrawLine(x0, y0 int, x1, y1 int, r, g, b, a byte, frame *Framebufer) {
 		sy = 1
 	}
 
-	err := dx - dy
+	s := dx - dy
 
 	for {
-		if pixErr := frame.SetPixelColors(x0, y0, r, g, b, a); pixErr != nil {
-			fmt.Fprintf(os.Stderr, "%v", pixErr)
-			return
-		}
+		_ = frame.SetPixelColors(x0, y0, r, g, b, a)
 
 		if x0 == x1 && y0 == y1 {
 			break
 		}
 
-		e2 := 2 * err
+		e2 := 2 * s
 
 		if e2 > -dy {
-			err -= dy
+			s -= dy
 			x0 += sx
 		}
 		if e2 < dx {
-			err += dx
+			s += dx
 			y0 += sy
 		}
 	}	
@@ -55,4 +51,37 @@ func DrawLine(x0, y0 int, x1, y1 int, r, g, b, a byte, frame *Framebufer) {
 
 func RoundToInt (val float64) int {
 	return int(math.Round(val))
+}
+
+func DrawTriangle (x0, y0, x1, y1, x2, y2 int, r, g, b, a byte, frame *Framebufer) {
+	DrawLine(x0, y0, x1, y1, r, g, b, a, frame)
+	DrawLine(x0, y0, x2, y2, r, g, b, a, frame)
+	DrawLine(x1, y1, x2, y2, r, g, b, a, frame)
+}
+
+func DrawTriangle3D(v0, v1, v2 Vec3, mvp Mat4, r, g, b, a byte, frame *Framebufer) {
+	p0, ok0 := ProjectVertex(v0, mvp, frame.width, frame.height)
+	p1, ok1 := ProjectVertex(v1, mvp, frame.width, frame.height)
+	p2, ok2 := ProjectVertex(v2, mvp, frame.width, frame.height)
+
+	if !ok0 || !ok1 || !ok2 {
+		fmt.Printf("Ditemukan vertex yang tidak valid\n")
+		return
+	}
+
+	DrawTriangle( RoundToInt(p0.X), RoundToInt(p0.Y), RoundToInt(p1.X), RoundToInt(p1.Y), RoundToInt(p2.X), RoundToInt(p2.Y), r, g, b, a, frame)
+}
+
+
+func DrawMeshWireframe(mesh Model, mvp Mat4, r, g, b, a byte, frame *Framebufer) {
+	for _, f := range mesh.Faces {
+		DrawTriangle3D(
+			mesh.Vertices[f.A],
+			mesh.Vertices[f.B],
+			mesh.Vertices[f.C],
+			mvp,
+			r, g, b, a,
+			frame,
+		)
+	}
 }
