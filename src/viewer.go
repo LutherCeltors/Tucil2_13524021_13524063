@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"unsafe"
+	"strings"
 
 	"github.com/veandco/go-sdl2/sdl"
 )
@@ -72,20 +73,11 @@ func (v *Viewer3D) init(mesh0, mesh1 *Model) error {
 func (v *Viewer3D) close() {
 	if v != nil {
 		v.texture.Destroy()
-		println("Texture")
-		println(v.texture)
 		v.texture = nil
-		println(v.texture)
 		v.renderer.Destroy()
-		println("Renderer")
-		println(v.renderer)
 		v.renderer = nil
-		println(v.renderer)
 		v.window.Destroy()
-		println("Window")
-		println(v.window)
 		v.window = nil
-		println(v.window)
 	}
 }
 
@@ -171,15 +163,59 @@ func (v *Viewer3D) run() error {
 	return err
 }
 
-func main() {
+type ControlItem struct {
+	Key      string
+	Function string
+}
+
+func PrintViewerControlTable() {
+	controls := []ControlItem{
+		{"W / S", "Pitch atas / bawah"},
+		{"A / D", "Yaw kiri / kanan"},
+		{"Q / E", "Zoom out / in"},
+		{"Arrow Keys", "Pan target kamera"},
+		{"R", "Reset kamera"},
+		{"TAB", "Swap model"},
+		{"ESC", "Keluar"},
+	}
+
+	header1 := "Tombol"
+	header2 := "Fungsi"
+
+	col1Width := len(header1)
+	col2Width := len(header2)
+
+	for _, c := range controls {
+		if len(c.Key) > col1Width {
+			col1Width = len(c.Key)
+		}
+		if len(c.Function) > col2Width {
+			col2Width = len(c.Function)
+		}
+	}
+
+	line := "+" + strings.Repeat("-", col1Width+2) + "+" + strings.Repeat("-", col2Width+2) + "+"
+
+	fmt.Println(line)
+	fmt.Printf("| %-*s | %-*s |\n", col1Width, header1, col2Width, header2)
+	fmt.Println(line)
+
+	for _, c := range controls {
+		fmt.Printf("| %-*s | %-*s |\n", col1Width, c.Key, col2Width, c.Function)
+	}
+
+	fmt.Println(line)
+}
+
+func Render(realObjPath, voxelObjPath string) {
 	var err error
 	var mesh0, mesh1 *Model
 	
-	if mesh0 ,err = ParseOBJ("cow.obj"); err != nil {
+	if mesh0 ,err = ParseOBJ(realObjPath); err != nil {
 		fmt.Fprintf(os.Stderr, "%v", err)
 	} 
 
-	if mesh1 ,err = ParseOBJ("cow-voxelized.obj"); err != nil {
+	if mesh1 ,err = ParseOBJ(voxelObjPath); err != nil {
 		fmt.Fprintf(os.Stderr, "%v", err)
 	} 
 

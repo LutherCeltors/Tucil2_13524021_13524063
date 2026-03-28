@@ -69,4 +69,14 @@ func main() {
 
 	fmt.Printf("Elapsed time       : %v\n", elapsed)
 	fmt.Printf("Output saved to    : %s\n", outputPath)
+
+	var ans string
+	fmt.Printf("View the result (y/n) ? ")
+	fmt.Scanln(&ans)
+	if ans == "y" {
+		PrintViewerControlTable()
+		fmt.Printf("Tekan enter untuk melanjutkan...")
+		fmt.Scanln(&ans)
+		Render(inputPath, outputPath)
+	}
 }
