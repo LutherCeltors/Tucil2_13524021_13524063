@@ -19,7 +19,8 @@ type Viewer3D struct {
 	window *sdl.Window
 	renderer *sdl.Renderer
 	texture *sdl.Texture
-	objModPath string
+	mesh2 [2]*Model
+	activeMesh int
 }
 
 func InitializeSdl2() error {
@@ -45,7 +46,7 @@ func newViewer3D() *Viewer3D {
 	return v
 }
 
-func (v *Viewer3D) init(p string) error {
+func (v *Viewer3D) init(mesh0, mesh1 *Model) error {
 	var err error
 
 	if v.window, err = sdl.CreateWindow(WINDOWN_TITLE, sdl.WINDOWPOS_CENTERED, sdl.WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, sdl.WINDOW_SHOWN); err != nil {
@@ -59,8 +60,11 @@ func (v *Viewer3D) init(p string) error {
 	if v.texture, err = v.renderer.CreateTexture(uint32(sdl.PIXELFORMAT_RGBA32), sdl.TEXTUREACCESS_STREAMING, int32(WINDOW_WIDTH), int32(WINDOW_HEIGHT)); err != nil {
 		return fmt.Errorf("Gagal memuat texture sebagai sarana rendering: %v\n", err)
 	}
+	
+	v.mesh2[0] = mesh0
+	v.mesh2[1] = mesh1
 
-	v.objModPath = p
+	v.activeMesh = 0
 	
 	return err
 }
@@ -87,41 +91,9 @@ func (v *Viewer3D) close() {
 
 func (v *Viewer3D) run() error {
 	var err error
-	rotatAngle := 0.0 
 	cam := 	NewOrbitCamera()
 	
 	frame := NewFramebuff(WINDOW_WIDTH, WINDOW_HEIGHT)
-	
-	//Vektor segitiga 3D
-	// v0 := Vec3{X: -1, Y: -1, Z: 0}
-	// v1 := Vec3{X: 1, Y: -1, Z: 0}
-	// v2 := Vec3{X: 0, Y: 1, Z: 0}
-
-	//Mesh model kubus
-	// cube := Model {
-	// 	Vertices : []Vec3{
-	// 		{-1.0,-1.0,-1.0}, 
-	// 		{ 1.0,-1.0,-1.0}, 
-	// 		{ 1.0, 1.0,-1.0},
-	// 		{-1.0, 1.0, -1.0},
-	// 		{-1.0, -1.0, 1.0},
-	// 		{ 1.0, -1.0, 1.0},
-	// 		{ 1.0, 1.0, 1.0},
-	// 		{-1.0, 1.0, 1.0},
-	// 	},
-	// 	Faces: []Triangle{
-	// 		{0, 1, 2}, {0, 2, 3}, 
-	// 		{4, 5, 6}, {4, 6, 7},
-	// 		{0, 1, 5}, {0, 5, 4}, 
-	// 		{2, 3, 7}, {2, 7, 6},
-	// 		{1, 2, 6}, {1, 6, 5},
-	// 		{0, 3, 7}, {0, 7, 4},
-	// 	},
-	// }
-
-	mesh, err := ParseOBJ("cow.obj")
-	if err != nil {return err}
-	NormalizeModel(mesh)
 	
 	for true {
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
@@ -155,6 +127,8 @@ func (v *Viewer3D) run() error {
 						cam.MoveCamera(0,0,0,0,-1)
 					case sdl.SCANCODE_R:
 						cam.Reset()
+					case sdl.SCANCODE_TAB:
+						v.activeMesh = absVal(v.activeMesh - 1)
 					}
 				}
 			}
@@ -164,23 +138,33 @@ func (v *Viewer3D) run() error {
 		frame.ClearFrameBuff(0, 0, 0, 255)
 		frame.ClearDepth(math.Inf(1))
 
-
 		model := Mat4Identity()
 		view := cam.ViewMatrix()
 		projection := cam.ProjectionMatrix(WINDOW_WIDTH, WINDOW_HEIGHT)
 
-		mvp := MulMat4Mat4(projection, MulMat4Mat4(view, model))
+		mView := MulMat4Mat4(view, model)
+		mvp := MulMat4Mat4(projection, mView)
 
-		DrawMeshWireframe(*mesh, mvp, 255, 0, 0, 255, frame)
+		lightDir := Normalized3(Vec3{1, 1, 1})
+
+		NormalizeModel(v.mesh2[v.activeMesh])
+
+		DrawModelFlatShaded(
+			v.mesh2[v.activeMesh],
+			mView,
+			mvp,
+			0, 180, 255, 255,
+			lightDir,
+			frame,
+		)
 
 		if err = v.texture.Update(nil, unsafe.Pointer(&frame.colors[0]), frame.nByteInRow); err != nil {
-			return fmt.Errorf("Gagal melakukan randerisasi: %v\n", err)		
+			return fmt.Errorf("Gagal melakukan randerisasi: %v\n", err)	
 		}
 		
 		v.renderer.Copy(v.texture, nil, nil)
 		v.renderer.Present()
 
-		rotatAngle += 0.1
 		sdl.Delay(20)
 	}
 
@@ -189,6 +173,15 @@ func (v *Viewer3D) run() error {
 
 func main() {
 	var err error
+	var mesh0, mesh1 *Model
+	
+	if mesh0 ,err = ParseOBJ("cow.obj"); err != nil {
+		fmt.Fprintf(os.Stderr, "%v", err)
+	} 
+
+	if mesh1 ,err = ParseOBJ("cow-voxelized.obj"); err != nil {
+		fmt.Fprintf(os.Stderr, "%v", err)
+	} 
 
 	defer QuitSdl2()
 	if err = InitializeSdl2(); err != nil {
@@ -197,8 +190,9 @@ func main() {
 	}
 
 	view := newViewer3D()
+	
 	defer view.close()
-	if err = view.init(); err != nil {
+	if err = view.init(mesh0, mesh1); err != nil {
 		fmt.Fprintf(os.Stderr, "%v", err)
 		return
 	}
@@ -206,4 +200,5 @@ func main() {
 	if err = view.run(); err != nil {
 		fmt.Fprintf(os.Stderr, "%v", err)
 	}
+		
 }

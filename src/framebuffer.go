@@ -73,3 +73,22 @@ func (frame *Framebufer) SetDepth(x, y int, val float64) error {
 
 	return err
 }
+
+func (frame *Framebufer) SetPixelDepthColor(x, y int, z float64, r, g, b, a byte) {
+	if x < 0 || x >= frame.width || y < 0 || y >= frame.height {
+		return
+	}
+
+	depthIdx := x + y*frame.width
+	if z >= frame.depth[depthIdx] {
+		return
+	}
+
+	frame.depth[depthIdx] = z
+
+	colorIdx := x*4 + frame.nByteInRow*y
+	frame.colors[colorIdx+0] = r
+	frame.colors[colorIdx+1] = g
+	frame.colors[colorIdx+2] = b
+	frame.colors[colorIdx+3] = a
+}
